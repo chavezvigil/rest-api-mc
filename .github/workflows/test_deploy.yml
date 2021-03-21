@@ -1,4 +1,4 @@
-# run locally with https://github.com/nektos/act
+# run locally with https://github.com/nektos/act 
 # sudo rm -r /github/workspace && sudo cp -r ./ /github/workspace && act run --job test --bind --directory /github/workspace
 name: ci
 
@@ -58,12 +58,10 @@ jobs:
         run: |
           docker-compose down
           docker-compose up -d
-
       - name: run tests
         run: |
           yarn install
           yarn test
-
       - name: shutdown test stack
         run: docker-compose down
 
@@ -78,9 +76,9 @@ jobs:
 
       - name: check correct configuration
         run: |
+          chmod +x $SUBZERO
           $SUBZERO check_configuration
           $SUBZERO check_database_connection "postgres://$MASTER_DB_CONNECTION_STRING"
-
       - name: login to subzero.cloud
         if: ${{ env.DEPLOY_TARGET == 'subzerocloud' }}
         run: $SUBZERO login "$SUBZERO_EMAIL" "$SUBZERO_PASSWORD"
@@ -88,44 +86,36 @@ jobs:
       - name: install dependencies
         run: |
           # apt-get update -y
-          apt-get install -y sshpass sqitch
+          sudo apt-get install -y sshpass sqitch
           # docker pull sqitch/sqitch
           # curl -s -L https://git.io/JJKCn -o /usr/local/bin/sqitch && chmod +x /usr/local/bin/sqitch
-
       - name: setup authenticator db role
         run: |
-          $SUBZERO setup_authenticator_role "$APP_DB_AUTHENTICATOR_USER" "$APP_DB_AUTHENTICATOR_PASS" "postgres://$MASTER_DB_CONNECTION_STRING"
-
+          $SUBZERO setup_authenticator_role "$APP_DB_AUTHENTICATOR_USER" "$APP_DB_AUTHENTICATOR_PASSWORD" "postgres://$MASTER_DB_CONNECTION_STRING"
       - name: setup subzero app
         if: ${{ env.DEPLOY_TARGET == 'subzerocloud' && ! env.APP_ID }}
         run : |
           $SUBZERO create_application
-
       - name: deploy database migrations
         working-directory: ./db/migrations
         run: |
           sqitch deploy "db:pg://$MASTER_DB_CONNECTION_STRING"
-
       - name: upload static content
         if: ${{ env.SUBZERO_UPLOAD_STATIC_FILES }}
         working-directory: ./html
         run : |
           sshpass -p "$SFTP_PASSWORD" scp -o StrictHostKeyChecking=no -P $SFTP_PORT -r ./ $SFTP_USER@$SFTP_HOST:/
-
       - name: store jwt secret in database
         run: |
           # $SUBZERO store_jwt_secret_as_guc "$APP_DB_AUTHENTICATOR_USER" "$APP_JWT_SECRET" "postgres://$MASTER_DB_CONNECTION_STRING"
           $SUBZERO store_jwt_secret_in_settings "$APP_DB_AUTHENTICATOR_USER" "$APP_JWT_SECRET" "postgres://$MASTER_DB_CONNECTION_STRING"
-
       - name: update authenticator role password
         run: |
-          $SUBZERO update_authenticator_role_password "$APP_DB_AUTHENTICATOR_USER" "$APP_DB_AUTHENTICATOR_PASS" "postgres://$MASTER_DB_CONNECTION_STRING"
-
+          $SUBZERO update_authenticator_role_password "$APP_DB_AUTHENTICATOR_USER" "$APP_DB_AUTHENTICATOR_PASSWORD" "postgres://$MASTER_DB_CONNECTION_STRING"
       - name: trigger subzero.cloud schema cache refresh
         if: ${{ env.DEPLOY_TARGET == 'subzerocloud' }}
         run: |
           # update_configuration will also trigger db schema refresh
           $SUBZERO update_configuration
-
           # you can also use this to trigger schema refresh without updating the configuration
           $SUBZERO reload_db_schema
